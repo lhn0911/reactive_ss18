@@ -1,10 +1,20 @@
+import { getCarts } from "@/apis/cart.api";
 import { Ionicons } from "@expo/vector-icons";
+import { useQuery } from "@tanstack/react-query";
 import { Tabs } from "expo-router";
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 export default function TabLayout() {
-  const cartItemCount = 3;
+  const { 
+    data: cartResponse,
+    isLoading,
+    isError
+  } = useQuery({
+    queryKey: ["carts"],
+    queryFn: getCarts
+  });
+  const cartItemCount = cartResponse?.data?.cartItems.length;
 
   return (
     <Tabs

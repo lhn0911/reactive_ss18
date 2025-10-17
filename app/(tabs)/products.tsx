@@ -1,7 +1,12 @@
+import { addProductToCart, getCarts } from "@/apis/cart.api";
+import { getAllProducts } from "@/apis/product.api";
 import { Ionicons } from "@expo/vector-icons";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Stack, useRouter } from "expo-router";
 import React from "react";
 import {
+  ActivityIndicator,
+  Alert,
   FlatList,
   Image,
   StyleSheet,
@@ -11,57 +16,15 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-// Dữ liệu sản phẩm fix cứng
-const PRODUCTS = [
-  {
-    id: "1",
-    name: "Áo thun Premium Slim Fit",
-    price: 350000,
-    image:
-      "https://tourandtate.com/vi/cdn/shop/files/2_7489a4ea-74f4-4a95-8729-945b68c22d66.jpg?v=1759694762&width=600",
-  },
-  {
-    id: "2",
-    name: "Ổ cứng di động WD 2TB",
-    price: 1850000,
-    image:
-      "https://th.bing.com/th/id/OIP.uEw1U3NQMQqezXcFacmjVgHaEZ?o=7&cb=12rm=3&rs=1&pid=ImgDetMain&o=7&rm=3",
-  },
-  {
-    id: "3",
-    name: "Vòng tay rồng John Hardy",
-    price: 12500000,
-    image:
-      "https://bizweb.dktcdn.net/thumb/large/100/449/470/products/e02758d7-caf3-44f6-9a61-d3970f1228f7.jpg?v=1660542354000",
-  },
-  {
-    id: "4",
-    name: "Balo Fjallraven Foldsack",
-    price: 2150000,
-    image:
-      "https://encrypted-tbn3.gstatic.com/shopping?q=tbn:ANd9GcT-pYrso-MrNOKt5WyoHodjPTpKmm2yV4a2rZjp2UiW-BLzCIaDhs7fG44u2zzB-6J9y43U0IQSkVhuE_qY5oa_HGNDcTPzA9XKJyZAyJuwwuU4gXP_LgR2jWW_586No2qxhFB7D_o&usqp=CAc",
-  },
-  {
-    id: "5",
-    name: "Đồng hồ nữ Micropave",
-    price: 3700000,
-    image:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ1sqR9keIrNvP3Ho-5AHX6t7jdf7JBN8Knlw&s",
-  },
-  {
-    id: "6",
-    name: "Áo khoác nam Cotton",
-    price: 950000,
-    image:
-      "https://encrypted-tbn2.gstatic.com/shopping?q=tbn:ANd9GcT54vw89eHXiTa6TAvTua_-9itPdfiEfIvgt0VEkN4t0wtNXSIipHu9Q5-HLwobzYyWzFvxxjeWutgUUSisxaF3Ps17Oppl9RIWLLQtBlhZOnOtlLthRydl5im9ukA2iqoOSWrSVw&usqp=CAc",
-  },
-];
-
 interface Product {
   id: string;
-  name: string;
+  productName: string;
   price: number;
-  image: string;
+  images: {
+    id: number;
+    url: string;
+    publicId: string;
+  }[];
 }
 
 type ProductCardProps = {
@@ -70,11 +33,39 @@ type ProductCardProps = {
 
 const ProductCard: React.FC<ProductCardProps> = ({ item }) => {
   const router = useRouter();
+  const queryClient = useQueryClient();
+
+  const { data: cartData } = useQuery({
+    queryKey: ["carts"],
+    queryFn: getCarts,
+  });
+
+  const { mutate, isPending } = useMutation({
+    mutationFn: addProductToCart,
+    onSuccess: () => {
+      Alert.alert("Thành công", "Đã thêm sản phẩm vào giỏ hàng!");
+      queryClient.invalidateQueries({ queryKey: ["carts"] });
+    },
+    onError: (error) => {
+      Alert.alert("Lỗi", "Thêm sản phẩm thất bại: " + error.message);
+    },
+  });
+
+  const handleAddToCart = (productId: string) => {
+    if (!cartData) return;
+    const numericProductId = Number(productId);
+    const payload = {
+      productId: numericProductId,
+      quantity: 1,
+    };
+
+    mutate(payload);
+  };
 
   return (
     <View style={styles.card}>
       <Image
-        source={{ uri: item.image }}
+        source={{ uri: item.images[0]?.url }}
         style={styles.image}
         resizeMode="contain"
       />
@@ -88,12 +79,12 @@ const ProductCard: React.FC<ProductCardProps> = ({ item }) => {
         style={styles.title}
         numberOfLines={2}
       >
-        {item.name}
+        {item?.productName}
       </Text>
       <Text style={styles.price}>{item.price.toLocaleString("vi-VN")} VNĐ</Text>
       <TouchableOpacity
         style={styles.addButton}
-        onPress={() => router.push("/cart")} // Chuyển hướng qua trang giỏ hàng khi nhấn
+        onPress={() => handleAddToCart(item.id)} // Chuyển hướng qua trang giỏ hàng khi nhấn
       >
         <Ionicons name="add" size={20} color="white" />
         <Text style={styles.addButtonText}>Thêm vào giỏ</Text>
@@ -103,15 +94,33 @@ const ProductCard: React.FC<ProductCardProps> = ({ item }) => {
 };
 
 export default function ProductsScreen() {
+  const queryClient = useQueryClient();
+  const {
+    data: products,
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ["products"],
+    queryFn: getAllProducts,
+  });
+
+  if (isLoading) {
+    return <ActivityIndicator size="large" style={{ flex: 1 }} />;
+  }
+
+  if (isError) {
+    return <Text>Đã có lỗi xảy ra khi tải dữ liệu.</Text>;
+  }
   return (
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ title: "Cửa hàng" }} />
       <FlatList
-        data={PRODUCTS}
+        data={products}
         renderItem={({ item }) => <ProductCard item={item} />}
         keyExtractor={(item) => item.id}
         numColumns={2}
         contentContainerStyle={styles.listContainer}
+        ListEmptyComponent={<Text>Danh sách trống!</Text>}
       />
     </SafeAreaView>
   );

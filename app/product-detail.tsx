@@ -1,7 +1,10 @@
+import { getProductById } from "@/apis/product.api";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useQuery } from "@tanstack/react-query";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
 import {
+  ActivityIndicator,
   Image,
   ScrollView,
   StatusBar,
@@ -12,21 +15,30 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-// Dữ liệu chi tiết sản phẩm fix cứng
-const PRODUCT_DETAIL = {
-  id: "2",
-  name: "Ổ cứng di động WD 2TB Elements Portable - USB 3.0",
-  price: 1850000,
-  image:
-    "https://th.bing.com/th/id/OIP.uEw1U3NQMQqezXcFacmjVgHaEZ?o=7&cb=12rm=3&rs=1&pid=ImgDetMain&o=7&rm=3",
-  rating: { rate: 4.8, count: 2150 },
-  description:
-    "WD 2TB Elements Portable External Hard Drive - USB 3.0, tương thích với PC, Mac, PS4 & Xbox. Cung cấp dung lượng lưu trữ lớn, tốc độ truyền dữ liệu nhanh chóng và thiết kế nhỏ gọn, bền bỉ.",
-  sizes: ["1TB", "2TB", "4TB"],
-};
-
 export default function ProductDetailScreen() {
+  const {id} = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+
+  const {
+    data: product,
+    isLoading,
+    isError
+  } = useQuery({
+    queryKey: ["product", id],
+    queryFn: async () => {
+      const response = await getProductById(Number(id));
+      return response.data;
+    },
+    enabled: !!id
+  })
+
+  if (isLoading) {
+    return <ActivityIndicator size="large" style={{ flex: 1 }} />;
+  }
+
+  if (isError) {
+    return <Text>Đã có lỗi xảy ra khi tải dữ liệu.</Text>;
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -48,28 +60,28 @@ export default function ProductDetailScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false}>
         <Image
-          source={{ uri: PRODUCT_DETAIL.image }}
+          source={{ uri: product.images?.[0]?.url }}
           style={styles.productImage}
         />
 
         <View style={styles.detailsContainer}>
           {/* Tên và Đánh giá */}
-          <Text style={styles.productName}>{PRODUCT_DETAIL.name}</Text>
+          <Text style={styles.productName}>{product.productName}</Text>
           <View style={styles.ratingContainer}>
             <Ionicons name="star" color="#FFC700" size={20} />
             <Text style={styles.ratingText}>
-              {PRODUCT_DETAIL.rating.rate} (
-              {PRODUCT_DETAIL.rating.count.toLocaleString()} đánh giá)
+              {product.rating?.rate} (
+              {product.rating?.count?.toLocaleString()} đánh giá)
             </Text>
           </View>
 
           {/* Mô tả */}
-          <Text style={styles.description}>{PRODUCT_DETAIL.description}</Text>
+          <Text style={styles.description}>{product.description}</Text>
 
           {/* Chọn Size */}
           <Text style={styles.sectionTitle}>Dung lượng</Text>
           <View style={styles.sizeContainer}>
-            {PRODUCT_DETAIL.sizes.map((size) => (
+            {product.sizes?.map((size: any) => (
               <TouchableOpacity key={size} style={styles.sizeOption}>
                 <Text style={styles.sizeText}>{size}</Text>
               </TouchableOpacity>
@@ -83,7 +95,7 @@ export default function ProductDetailScreen() {
         <View>
           <Text style={styles.priceLabel}>Giá tiền</Text>
           <Text style={styles.priceValue}>
-            {PRODUCT_DETAIL.price.toLocaleString("vi-VN")} VNĐ
+            {product.price.toLocaleString("vi-VN")} VNĐ
           </Text>
         </View>
         <TouchableOpacity style={styles.addToCartButton}>
